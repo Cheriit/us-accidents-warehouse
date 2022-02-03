@@ -1,0 +1,40 @@
+package pl.michalsz.spark
+package model
+
+import java.sql.Timestamp
+
+case class FileAccident(id: String,
+                        source: String,
+                        tmc: String,
+                        severity: Int,
+                        startTime: Timestamp,
+                        endTime: Timestamp,
+                        startLat: Double,
+                        startLng: Double,
+                        endLat: Double,
+                        endLng: Double,
+                        distance: Double,
+                        description: String,
+                        dumber: String,
+                        street: String,
+                        side: String,
+                        zipcode: String,
+                        airportCode: String,
+                        amenity: Boolean,
+                        bump: Boolean,
+                        crossing: Boolean,
+                        giveWay: Boolean,
+                        junction: Boolean,
+                        noExit: Boolean,
+                        railway: Boolean,
+                        roundabout: Boolean,
+                        station: Boolean,
+                        stop: Boolean,
+                        trafficCalming: Boolean,
+                        trafficSignal: Boolean,
+                        turningLoop: Boolean,
+                        sunriseSunset: String,
+                        civilTwilight: String,
+                        nauticalTwilight: String,
+                        astronomicalTwilight: String
+                       )

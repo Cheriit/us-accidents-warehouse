@@ -3,7 +3,8 @@ import datetime
 import airflow
 from airflow import models
 from airflow.models import Variable
-from airflow.providers.google.cloud.operators.dataproc import DataprocCreateClusterOperator, DataprocSubmitJobOperator
+from airflow.providers.google.cloud.operators.dataproc import DataprocCreateClusterOperator, DataprocClusterDeleteOperator, DataprocSubmitJobOperator
+from airflow.utils import trigger_rule
 
 default_dag_args = {
     'retry_delay': datetime.timedelta(minutes=5),
@@ -62,15 +63,19 @@ with models.DAG(
         region=Variable.get("REGION"),
         cluster_name=Variable.get("CLUSTER_NAME"),
     ))
-    # TODO Load data
-    dag.add_task(generate_spark_submit_task('create-table', 'pl.michalsz.spark.CreateTable'))
+    dag.add_task(generate_spark_submit_task('create-table', 'pl.michalsz.spark.CreateTable', [Variable.get("DATABASE_LOCALISATION")]))
     dag.add_tasks([
         generate_spark_submit_task('load-surrounding', 'pl.michalsz.spark.SurroundingLoader'),
         generate_spark_submit_task('load-temperature', 'pl.michalsz.spark.TemperatureLoader'),
         generate_spark_submit_task('load-visibility', 'pl.michalsz.spark.VisibilityLoader'),
         generate_spark_submit_task('load-weather-condition', 'pl.michalsz.spark.WeatherConditionLoader',
-                                   ["input/us-accidents"], 4),
-        generate_spark_submit_task('load-time', 'pl.michalsz.spark.TimeLoader', ["input/us-accidents"], 4),
-        generate_spark_submit_task('load-location', 'pl.michalsz.spark.LocationLoader', ["input/us-accidents"], 4),
+                                  [Variable.get("INPUT_PATH")], 4),
+        generate_spark_submit_task('load-time', 'pl.michalsz.spark.TimeLoader', [Variable.get("INPUT_PATH")], 4),
+        generate_spark_submit_task('load-location', 'pl.michalsz.spark.LocationLoader', [Variable.get("INPUT_PATH")], 4),
     ])
-    dag.add_task(generate_spark_submit_task('load-facts', 'pl.michalsz.spark.FactLoader', ["input/us-accidents"], 4))
+    dag.add_task(generate_spark_submit_task('load-facts', 'pl.michalsz.spark.FactLoader', [Variable.get("INPUT_PATH")], 4))
+    if (Variable.get("SHOULD_DELETE_CLUSTER") == 1):
+        dag.add_task(DataprocClusterDeleteOperator(
+            task_id='delete_dataproc',
+            cluster_name=Variable.get("CLUSTER_NAME"),
+            trigger_rule=trigger_rule.TriggerRule.ALL_DONE))

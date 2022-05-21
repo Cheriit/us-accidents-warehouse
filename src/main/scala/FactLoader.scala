@@ -23,6 +23,8 @@ object FactLoader {
                                           .appName("pl.michalsz.spark.FactLoader")
                                           .getOrCreate()
     val filesLocation = args(0)
+    val bigQueryTemporaryGcsBucket = args(1)
+    val bigQueryDataset = args(2)
 
     val accidentDS: Dataset[ParsedAccident] = getAccidentsDS(filesLocation)
 
@@ -33,11 +35,11 @@ object FactLoader {
       .withColumn("dateTimeLag", lag(weatherDS("dateTime"), 1, Timestamp.valueOf(LocalDateTime.of(1970, 1, 1, 0, 0))).over(windowAirport))
       .withColumn("dateTimeLead", lead(weatherDS("dateTime"), 1, Timestamp.valueOf(LocalDateTime.of(1970, 1, 1, 0, 0))).over(windowAirport))
 
-    val weatherConditionDS = spark.read.table("WeatherCondition").as(Encoders.product[WeatherCondition])
-    val visibilityDS = spark.read.table("Visibility").as(Encoders.product[Visibility])
-    val temperatureDS = spark.read.table("Temperature").as(Encoders.product[Temperature])
-    val surroundingDS = spark.read.table("Surrounding").as(Encoders.product[Surrounding])
-    val locationDS = spark.read.table("Location").as(Encoders.product[Location])
+    val weatherConditionDS = spark.read.format("bigquery").load(s"$bigQueryDataset.WeatherCondition").as(Encoders.product[WeatherCondition])
+    val visibilityDS = spark.read.format("bigquery").load(s"$bigQueryDataset.Visibility").as(Encoders.product[Visibility])
+    val temperatureDS = spark.read.format("bigquery").load(s"$bigQueryDataset.Temperature").as(Encoders.product[Temperature])
+    val surroundingDS = spark.read.format("bigquery").load(s"$bigQueryDataset.Surrounding").as(Encoders.product[Surrounding])
+    val locationDS = spark.read.format("bigquery").load(s"$bigQueryDataset.Location").as(Encoders.product[Location])
 
 
     val accidentWithWeatherDS = accidentDS
@@ -133,9 +135,9 @@ object FactLoader {
                       col("weatherConditionId")
                       )
                     .write
-                    .format("delta")
-                    .insertInto("Accident")
-
+                    .format("bigquery")
+                    .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
+                    .insertInto(s"$bigQueryDataset.Accident")
   }
 
   private def getAccidentsDS(filesLocation: String): Dataset[ParsedAccident] = {

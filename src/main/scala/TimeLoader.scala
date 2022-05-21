@@ -16,6 +16,9 @@ object TimeLoader {
     import spark.implicits._
 
     val filesLocation = args(0)
+    val bigQueryTemporaryGcsBucket = args(1)
+    val bigQueryDataset = args(2)
+
     val fileAccidentsDS = spark.read
                                .option("header", value = true)
                                .option("quote", "\"")
@@ -46,7 +49,8 @@ object TimeLoader {
 
 
     timeDS.write
-          .format("delta")
-          .insertInto("Time")
+          .format("bigquery")
+          .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
+          .insertInto(s"$bigQueryDataset.Time")
   }
 }

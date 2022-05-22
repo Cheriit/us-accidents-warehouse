@@ -1,5 +1,3 @@
-package pl.michalsz.spark
-
 import model._
 
 import com.swoop.alchemy.spark.expressions.hll.functions._
@@ -20,7 +18,7 @@ object FactLoader {
 
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.FactLoader")
+                                          .appName("FactLoader")
                                           .getOrCreate()
     val filesLocation = args(0)
     val bigQueryTemporaryGcsBucket = args(1)

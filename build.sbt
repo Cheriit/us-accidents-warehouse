@@ -4,8 +4,7 @@ ThisBuild / scalaVersion := "2.12.14"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "us-accidents-warehouse",
-    idePackagePrefix := Some("pl.michalsz.spark")
+    name := "us-accidents-warehouse"
     )
 
 libraryDependencies ++= Seq(

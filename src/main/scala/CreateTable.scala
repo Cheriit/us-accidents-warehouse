@@ -1,12 +1,10 @@
-package pl.michalsz.spark
-
 import org.apache.spark.sql.SparkSession
 
 object CreateTable {
 
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-      .appName("pl.michalsz.spark.CreateTable")
+      .appName("CreateTable")
       .getOrCreate()
 
     spark.sql("DROP TABLE IF EXISTS Accident")

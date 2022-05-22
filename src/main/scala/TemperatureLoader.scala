@@ -1,11 +1,9 @@
-package pl.michalsz.spark
-
 import org.apache.spark.sql.SparkSession
 
 object TemperatureLoader {
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.TemperatureLoader")
+                                          .appName("TemperatureLoader")
                                           .getOrCreate()
 
     val bigQueryTemporaryGcsBucket = args(0)

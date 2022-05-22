@@ -1,11 +1,9 @@
-package pl.michalsz.spark
-
 import org.apache.spark.sql.SparkSession
 
 object VisibilityLoader {
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.VisibilityLoader")
+                                          .appName("VisibilityLoader")
                                           .getOrCreate()
 
     val bigQueryTemporaryGcsBucket = args(0)

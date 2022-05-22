@@ -1,5 +1,3 @@
-package pl.michalsz.spark
-
 import model.{FileAccident, FileLocation, Location}
 
 import org.apache.spark.broadcast.Broadcast
@@ -12,7 +10,7 @@ object LocationLoader {
 
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.LocationLoader")
+                                          .appName("LocationLoader")
                                           .getOrCreate()
 
     val filesLocation = spark.sparkContext.broadcast(args(0))

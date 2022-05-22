@@ -1,5 +1,3 @@
-package pl.michalsz.spark
-
 import model.{FileAccident, Time}
 
 import org.apache.spark.sql.functions.{date_format, max, min, to_date}
@@ -11,7 +9,7 @@ object TimeLoader {
 
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.TimeLoader")
+                                          .appName("TimeLoader")
                                           .getOrCreate()
     import spark.implicits._
 

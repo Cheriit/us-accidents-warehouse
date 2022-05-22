@@ -1,4 +1,3 @@
-package pl.michalsz.spark
 package model
 
 case class Surrounding(surroundingId: BigInt,

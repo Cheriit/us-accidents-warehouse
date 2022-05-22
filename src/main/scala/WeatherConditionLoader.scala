@@ -1,5 +1,3 @@
-package pl.michalsz.spark
-
 import model.WeatherCondition
 
 import org.apache.spark.sql._
@@ -12,7 +10,7 @@ object WeatherConditionLoader {
 
   def main(args: Array[String]): Unit = {
     val spark: SparkSession = SparkSession.builder()
-                                          .appName("pl.michalsz.spark.WeatherConditionLoader")
+                                          .appName("WeatherConditionLoader")
                                           .getOrCreate()
 
     val bigQueryTemporaryGcsBucket = args(0)

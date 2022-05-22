@@ -4,7 +4,7 @@ import airflow
 from airflow import models
 from airflow.models import Variable
 from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateEmptyTableOperator, BigQueryCreateEmptyDatasetOperator, BigQueryDeleteDatasetOperator
-from airflow.providers.google.cloud.operators.dataproc import DataprocCreateClusterOperator, DataprocClusterDeleteOperator, DataprocSubmitJobOperator
+from airflow.providers.google.cloud.operators.dataproc import DataprocCreateClusterOperator, DataprocSubmitJobOperator, DataprocDeleteClusterOperator
 from airflow.utils import trigger_rule
 
 default_dag_args = {
@@ -86,13 +86,14 @@ weather_condition_schema = [
 ]
 
 
-def generate_spark_submit_task(task_id: str, class_name: str, executor_cores: int = 1,
-                               parameters: list[str] = []) -> DataprocSubmitJobOperator:
+def generate_spark_submit_task(dag, task_id: str, class_name: str, executor_cores: int = 1, parameters = []) -> DataprocSubmitJobOperator:
     return DataprocSubmitJobOperator(
+        dag=dag,
         task_id=task_id,
+        region=Variable.get("REGION"),
         job={
             "reference": {"project_id": Variable.get("PROJECT_ID")},
-            "placement": {"cluster_name": Variable.get("CLUSTER_NAME")},
+            "placement": {"cluster_name": Variable.get("CLUSTER_NAME"), "region": Variable.get("REGION")},
             "spark_job": {
                 "jar_file_utils": f"gs:/${Variable.get('BUCKET_NAME')}/us-accidents-warehouse_2.12-1.0.0.jar",
                 "main_class": class_name,
@@ -105,8 +106,9 @@ def generate_spark_submit_task(task_id: str, class_name: str, executor_cores: in
     )
 
 
-def generate_big_query_table_task(task_id: str, table_id: str, schema_fields: list[dict[str, str]]):
+def generate_big_query_table_task(dag, task_id: str, table_id: str, schema_fields):
     return BigQueryCreateEmptyTableOperator(
+        dag=dag,
         task_id=task_id,
         dataset_id=Variable.get("BQ_DATASET"),
         table_id=table_id,
@@ -115,51 +117,68 @@ def generate_big_query_table_task(task_id: str, table_id: str, schema_fields: li
 
 
 with models.DAG(
-        dag_id="US Accidents Warehouse DAG",
+        dag_id="US_Accidents_Warehouse_DAG",
         schedule_interval='@once',
         start_date=airflow.utils.dates.days_ago(1),
         default_args=default_dag_args
 ) as dag:
-    dag.add_task(DataprocCreateClusterOperator(
+    create_cluster_operation = DataprocCreateClusterOperator(
+        dag=dag,
         task_id="create_cluster",
         cluster_config=CLUSTER_CONFIG,
         region=Variable.get("REGION"),
         cluster_name=Variable.get("CLUSTER_NAME"),
-    ))
-    dag.add_task(BigQueryDeleteDatasetOperator(
+    )
+    delete_big_query_dataset_operation = BigQueryDeleteDatasetOperator(
+        dag=dag,
         task_id="delete_big_query_dataset",
         dataset_id=Variable.get("BQ_DATASET"),
+        project_id=Variable.get("PROJECT_ID"),
         delete_contents=True
-    ))
-    dag.add_task(BigQueryCreateEmptyDatasetOperator(
+    )
+    create_big_query_dataset_operation = BigQueryCreateEmptyDatasetOperator(
+        dag=dag,
         task_id="create_big_query_dataset",
         dataset_id=Variable.get("BQ_DATASET"),
-    ))
-    dag.add_tasks([
-        generate_big_query_table_task('create-table-accident', 'Accident', accident_schema),
-        generate_big_query_table_task('create-table-time', 'Time', time_schema),
-        generate_big_query_table_task('create-table-location', 'Location', location_schema),
-        generate_big_query_table_task('create-table-surrounding', 'Surrounding', surrounding_schema),
-        generate_big_query_table_task('create-table-temperature', 'Temperature', temperature_schema),
-        generate_big_query_table_task('create-table-visibility', 'Visibility', visibility_schema),
-        generate_big_query_table_task('create-table-weather-condition', 'WeatherCondition', weather_condition_schema)
-    ])
-    dag.add_tasks([
-        generate_spark_submit_task('load-surrounding', 'pl.michalsz.spark.SurroundingLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
-        generate_spark_submit_task('load-temperature', 'pl.michalsz.spark.TemperatureLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
-        generate_spark_submit_task('load-visibility', 'pl.michalsz.spark.VisibilityLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
-        generate_spark_submit_task('load-weather-condition', 'pl.michalsz.spark.WeatherConditionLoader', 4,
+        project_id=Variable.get("PROJECT_ID")
+    )
+    create_tables_operation = [
+        generate_big_query_table_task(dag, 'create-table-accident', 'Accident', accident_schema),
+        generate_big_query_table_task(dag, 'create-table-time', 'Time', time_schema),
+        generate_big_query_table_task(dag, 'create-table-location', 'Location', location_schema),
+        generate_big_query_table_task(dag, 'create-table-surrounding', 'Surrounding', surrounding_schema),
+        generate_big_query_table_task(dag, 'create-table-temperature', 'Temperature', temperature_schema),
+        generate_big_query_table_task(dag, 'create-table-visibility', 'Visibility', visibility_schema),
+        generate_big_query_table_task(dag, 'create-table-weather-condition', 'WeatherCondition', weather_condition_schema)
+    ]
+
+    load_dimensions_operation = [
+        generate_spark_submit_task(dag, 'warehouse_load-surrounding', 'SurroundingLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task(dag, 'warehouse_load-temperature', 'TemperatureLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task(dag, 'warehouse_load-visibility', 'VisibilityLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task(dag, 'warehouse_load-weather-condition', 'WeatherConditionLoader', 4,
                                    [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
-        generate_spark_submit_task('load-time', 'pl.michalsz.spark.TimeLoader', 4,
+        generate_spark_submit_task(dag, 'warehouse_load-time', 'TimeLoader', 4,
                                    [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
-        generate_spark_submit_task('load-location', 'pl.michalsz.spark.LocationLoader', 4,
+        generate_spark_submit_task(dag, 'warehouse_load-location', 'LocationLoader', 4,
                                    [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")])
-    ])
-    dag.add_task(
-        generate_spark_submit_task('load-facts', 'pl.michalsz.spark.FactLoader', 4,
-                                   [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]))
-    if Variable.get("SHOULD_DELETE_CLUSTER") == 1:
-        dag.add_task(DataprocClusterDeleteOperator(
-            task_id='delete_dataproc',
-            cluster_name=Variable.get("CLUSTER_NAME"),
-            trigger_rule=trigger_rule.TriggerRule.ALL_DONE))
+    ]
+    load_facts_operation = generate_spark_submit_task(dag, 'warehouse_load-facts', 'FactLoader', 4,
+                                                      [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")])
+
+    delete_cluster_operation = DataprocDeleteClusterOperator(
+        dag=dag,
+        region=Variable.get("REGION"),
+        task_id='delete_dataproc',
+        cluster_name=Variable.get("CLUSTER_NAME"),
+        trigger_rule=trigger_rule.TriggerRule.ALWAYS
+    )
+
+    create_cluster_operation >> delete_big_query_dataset_operation >> create_big_query_dataset_operation >> create_tables_operation
+    create_tables_operation[0] >> load_dimensions_operation >> load_facts_operation >> delete_cluster_operation
+    create_tables_operation[1] >> load_dimensions_operation[4]
+    create_tables_operation[2] >> load_dimensions_operation[5]
+    create_tables_operation[3] >> load_dimensions_operation[0]
+    create_tables_operation[4] >> load_dimensions_operation[1]
+    create_tables_operation[5] >> load_dimensions_operation[2]
+    create_tables_operation[6] >> load_dimensions_operation[3]

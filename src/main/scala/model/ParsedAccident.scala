@@ -1,4 +1,3 @@
-package pl.michalsz.spark
 package model
 
 import java.sql.Timestamp

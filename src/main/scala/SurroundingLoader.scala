@@ -9,6 +9,10 @@ object SurroundingLoader {
     val spark: SparkSession = SparkSession.builder()
                                           .appName("pl.michalsz.spark.SurroundingLoader")
                                           .getOrCreate()
+
+    val bigQueryTemporaryGcsBucket = args(0)
+    val bigQueryDataset = args(1)
+
     import scala.collection.mutable.ListBuffer
 
     val ids: Seq[Int] = 0 to 7
@@ -23,8 +27,9 @@ object SurroundingLoader {
     spark.createDataFrame(valuesWithId)
          .toDF("SurroundingId", "Crossing", "Railway", "Stop")
          .write
-         .format("delta")
-         .insertInto("Surrounding")
+         .format("bigquery")
+         .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
+         .insertInto(s"$bigQueryDataset.Surrounding")
   }
 
 }

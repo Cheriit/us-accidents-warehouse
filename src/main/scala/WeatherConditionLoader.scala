@@ -14,6 +14,10 @@ object WeatherConditionLoader {
     val spark: SparkSession = SparkSession.builder()
                                           .appName("pl.michalsz.spark.WeatherConditionLoader")
                                           .getOrCreate()
+
+    val bigQueryTemporaryGcsBucket = args(0)
+    val bigQueryDataset = args(1)
+
     import spark.implicits._
 
     val filesLocation = args(0)
@@ -33,7 +37,8 @@ object WeatherConditionLoader {
       .as[WeatherCondition]
 
     weatherDS.write
-             .format("delta")
-             .insertInto("WeatherCondition")
+             .format("bigquery")
+             .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
+             .insertInto(s"$bigQueryDataset.WeatherCondition")
   }
 }

@@ -8,6 +8,9 @@ object VisibilityLoader {
                                           .appName("pl.michalsz.spark.VisibilityLoader")
                                           .getOrCreate()
 
+    val bigQueryTemporaryGcsBucket = args(0)
+    val bigQueryDataset = args(1)
+
     val VisibilityValues = Seq(
       (0, Some(0), Some(2), "Terrible"),
       (1, Some(2), Some(4), "Bad"),
@@ -20,7 +23,8 @@ object VisibilityLoader {
     spark.createDataFrame(VisibilityValues)
          .toDF("VisibilityId", "MinimumDistance", "MaximumDistance", "Description")
          .write
-         .format("delta")
-         .insertInto("Visibility")
+         .format("bigquery")
+         .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
+         .insertInto(s"$bigQueryDataset.Visibility")
   }
 }

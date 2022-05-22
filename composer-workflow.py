@@ -3,6 +3,7 @@ import datetime
 import airflow
 from airflow import models
 from airflow.models import Variable
+from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateEmptyTableOperator, BigQueryCreateEmptyDatasetOperator, BigQueryDeleteDatasetOperator
 from airflow.providers.google.cloud.operators.dataproc import DataprocCreateClusterOperator, DataprocClusterDeleteOperator, DataprocSubmitJobOperator
 from airflow.utils import trigger_rule
 
@@ -26,6 +27,64 @@ CLUSTER_CONFIG = {
     },
 }
 
+accident_schema = [
+    {"name": "AccidentId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Distance", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "NumberOfAccidents", "type": "BYTES", "mode": "REQUIRED"},
+    {"name": "Severity", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "TimeId", "type": "DATE", "mode": "REQUIRED"},
+    {"name": "LocationId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "SurroundingId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "TemperatureId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "VisibilityId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "WeatherConditionId", "type": "INTEGER", "mode": "REQUIRED"},
+]
+
+time_schema = [
+    {"name": "TimeId", "type": "DATE", "mode": "REQUIRED"},
+    {"name": "Year", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Month", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Day", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "DayOfWeek", "type": "STRING", "mode": "REQUIRED"}
+]
+
+location_schema = [
+    {"name": "LocationId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Zipcode", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "AirportCode", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "City", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "County", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "State", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "Country", "type": "STRING", "mode": "REQUIRED"},
+    {"name": "Street", "type": "STRING", "mode": "REQUIRED"}
+]
+
+surrounding_schema = [
+    {"name": "SurroundingId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Crossing", "type": "BOOL", "mode": "REQUIRED"},
+    {"name": "Railway", "type": "BOOL", "mode": "REQUIRED"},
+    {"name": "Stop", "type": "BOOL", "mode": "REQUIRED"}
+]
+
+temperature_schema = [
+    {"name": "TemperatureId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "MinimumTemperature", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "MaximumTemperature", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Description", "type": "STRING", "mode": "REQUIRED"}
+]
+
+visibility_schema = [
+    {"name": "VisibilityId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "MinimumDistance", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "MaximumDistance", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Description", "type": "STRING", "mode": "REQUIRED"}
+]
+
+weather_condition_schema = [
+    {"name": "WeatherConditionId", "type": "INTEGER", "mode": "REQUIRED"},
+    {"name": "Description", "type": "STRING", "mode": "REQUIRED"}
+]
+
 
 def generate_spark_submit_task(task_id: str, class_name: str, executor_cores: int = 1,
                                parameters: list[str] = []) -> DataprocSubmitJobOperator:
@@ -40,14 +99,18 @@ def generate_spark_submit_task(task_id: str, class_name: str, executor_cores: in
                 "num_executors": 1,
                 "driver_memory": "512m",
                 "executor_cores": executor_cores,
-                "packages": "io.delta:delta-core_2.12:1.0.0",
-                "conf": {
-                    'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
-                    'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
-                },
                 "args": parameters
             }
         }
+    )
+
+
+def generate_big_query_table_task(task_id: str, table_id: str, schema_fields: list[dict[str, str]]):
+    return BigQueryCreateEmptyTableOperator(
+        task_id=task_id,
+        dataset_id=Variable.get("BQ_DATASET"),
+        table_id=table_id,
+        schema_fields=schema_fields
     )
 
 
@@ -63,18 +126,39 @@ with models.DAG(
         region=Variable.get("REGION"),
         cluster_name=Variable.get("CLUSTER_NAME"),
     ))
-    dag.add_task(generate_spark_submit_task('create-table', 'pl.michalsz.spark.CreateTable', [Variable.get("DATABASE_LOCALISATION")]))
+    dag.add_task(BigQueryDeleteDatasetOperator(
+        task_id="delete_big_query_dataset",
+        dataset_id=Variable.get("BQ_DATASET"),
+        delete_contents=True
+    ))
+    dag.add_task(BigQueryCreateEmptyDatasetOperator(
+        task_id="create_big_query_dataset",
+        dataset_id=Variable.get("BQ_DATASET"),
+    ))
     dag.add_tasks([
-        generate_spark_submit_task('load-surrounding', 'pl.michalsz.spark.SurroundingLoader'),
-        generate_spark_submit_task('load-temperature', 'pl.michalsz.spark.TemperatureLoader'),
-        generate_spark_submit_task('load-visibility', 'pl.michalsz.spark.VisibilityLoader'),
-        generate_spark_submit_task('load-weather-condition', 'pl.michalsz.spark.WeatherConditionLoader',
-                                  [Variable.get("INPUT_PATH")], 4),
-        generate_spark_submit_task('load-time', 'pl.michalsz.spark.TimeLoader', [Variable.get("INPUT_PATH")], 4),
-        generate_spark_submit_task('load-location', 'pl.michalsz.spark.LocationLoader', [Variable.get("INPUT_PATH")], 4),
+        generate_big_query_table_task('create-table-accident', 'Accident', accident_schema),
+        generate_big_query_table_task('create-table-time', 'Time', time_schema),
+        generate_big_query_table_task('create-table-location', 'Location', location_schema),
+        generate_big_query_table_task('create-table-surrounding', 'Surrounding', surrounding_schema),
+        generate_big_query_table_task('create-table-temperature', 'Temperature', temperature_schema),
+        generate_big_query_table_task('create-table-visibility', 'Visibility', visibility_schema),
+        generate_big_query_table_task('create-table-weather-condition', 'WeatherCondition', weather_condition_schema)
     ])
-    dag.add_task(generate_spark_submit_task('load-facts', 'pl.michalsz.spark.FactLoader', [Variable.get("INPUT_PATH")], 4))
-    if (Variable.get("SHOULD_DELETE_CLUSTER") == 1):
+    dag.add_tasks([
+        generate_spark_submit_task('load-surrounding', 'pl.michalsz.spark.SurroundingLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task('load-temperature', 'pl.michalsz.spark.TemperatureLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task('load-visibility', 'pl.michalsz.spark.VisibilityLoader', 1, [Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task('load-weather-condition', 'pl.michalsz.spark.WeatherConditionLoader', 4,
+                                   [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task('load-time', 'pl.michalsz.spark.TimeLoader', 4,
+                                   [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]),
+        generate_spark_submit_task('load-location', 'pl.michalsz.spark.LocationLoader', 4,
+                                   [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")])
+    ])
+    dag.add_task(
+        generate_spark_submit_task('load-facts', 'pl.michalsz.spark.FactLoader', 4,
+                                   [Variable.get("INPUT_PATH"), Variable.get("TEMPORARY_BUCKET"), Variable.get("BQ_DATASET")]))
+    if Variable.get("SHOULD_DELETE_CLUSTER") == 1:
         dag.add_task(DataprocClusterDeleteOperator(
             task_id='delete_dataproc',
             cluster_name=Variable.get("CLUSTER_NAME"),

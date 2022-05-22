@@ -16,10 +16,13 @@ object LocationLoader {
                                           .getOrCreate()
 
     val filesLocation = spark.sparkContext.broadcast(args(0))
-    REGION_NAMES.par.foreach(region => addLocationForCsv(filesLocation, region))
+    val bigQueryTemporaryGcsBucket = spark.sparkContext.broadcast(args(1))
+    val bigQueryDataset = spark.sparkContext.broadcast(args(2))
+
+    REGION_NAMES.par.foreach(region => addLocationForCsv(filesLocation, bigQueryTemporaryGcsBucket, bigQueryDataset, region))
   }
 
-  private def addLocationForCsv(filesLocation: Broadcast[String], regionName: String): Unit = {
+  private def addLocationForCsv(filesLocation: Broadcast[String], bigQueryTemporaryGcsBucket: Broadcast[String], bigQueryDataset: Broadcast[String], regionName: String): Unit = {
     val spark: SparkSession = SparkSession.builder()
                                           .getOrCreate()
     import spark.implicits._
@@ -56,7 +59,8 @@ object LocationLoader {
                           .as[Location]
 
     locationDS.write
-              .format("delta")
-              .insertInto("Location")
+              .format("bigquery")
+              .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket.value)
+              .insertInto(s"${bigQueryDataset.value}.Location")
   }
 }

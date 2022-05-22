@@ -11,7 +11,7 @@ lazy val root = (project in file("."))
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "3.1.2",
   "org.apache.spark" %% "spark-sql" % "3.1.2" % "provided",
-  "io.delta" %% "delta-core" % "1.0.0",
+  "com.google.cloud.spark" %% "spark-bigquery" % "0.24.2",
   "com.swoop" %% "spark-alchemy" % "1.1.0"
   )
 

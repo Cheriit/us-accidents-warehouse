@@ -49,6 +49,7 @@ object TimeLoader {
     timeDS.write
           .format("bigquery")
           .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-          .insertInto(s"$bigQueryDataset.Time")
+          .mode("append")
+          .save(s"$bigQueryDataset.Time")
   }
 }

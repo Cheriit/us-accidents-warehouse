@@ -23,6 +23,7 @@ object VisibilityLoader {
          .write
          .format("bigquery")
          .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-         .insertInto(s"$bigQueryDataset.Visibility")
+         .mode("append")
+         .save(s"$bigQueryDataset.Visibility")
   }
 }

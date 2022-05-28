@@ -59,6 +59,7 @@ object LocationLoader {
     locationDS.write
               .format("bigquery")
               .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket.value)
-              .insertInto(s"${bigQueryDataset.value}.Location")
+              .mode("append")
+              .save(s"${bigQueryDataset.value}.Location")
   }
 }

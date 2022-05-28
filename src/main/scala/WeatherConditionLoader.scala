@@ -13,12 +13,11 @@ object WeatherConditionLoader {
                                           .appName("WeatherConditionLoader")
                                           .getOrCreate()
 
-    val bigQueryTemporaryGcsBucket = args(0)
-    val bigQueryDataset = args(1)
+    val filesLocation = args(0)
+    val bigQueryTemporaryGcsBucket = args(1)
+    val bigQueryDataset = args(2)
 
     import spark.implicits._
-
-    val filesLocation = args(0)
     val unparsedWeatherDF = spark.read
                                  .textFile(s"$filesLocation/weather*")
                                  .toDF("value")
@@ -37,6 +36,7 @@ object WeatherConditionLoader {
     weatherDS.write
              .format("bigquery")
              .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-             .insertInto(s"$bigQueryDataset.WeatherCondition")
+             .mode("append")
+             .save(s"$bigQueryDataset.WeatherCondition")
   }
 }

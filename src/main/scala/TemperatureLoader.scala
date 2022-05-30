@@ -23,6 +23,7 @@ object TemperatureLoader {
          .write
          .format("bigquery")
          .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-         .insertInto(s"$bigQueryDataset.Temperature")
+         .mode("append")
+         .save(s"$bigQueryDataset.Temperature")
   }
 }

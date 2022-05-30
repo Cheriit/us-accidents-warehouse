@@ -135,7 +135,8 @@ object FactLoader {
                     .write
                     .format("bigquery")
                     .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-                    .insertInto(s"$bigQueryDataset.Accident")
+                    .mode("append")
+                    .save(s"$bigQueryDataset.Accident")
   }
 
   private def getAccidentsDS(filesLocation: String): Dataset[ParsedAccident] = {

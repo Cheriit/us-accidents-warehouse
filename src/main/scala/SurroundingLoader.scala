@@ -27,7 +27,8 @@ object SurroundingLoader {
          .write
          .format("bigquery")
          .option("temporaryGcsBucket", bigQueryTemporaryGcsBucket)
-         .insertInto(s"$bigQueryDataset.Surrounding")
+         .mode("append")
+         .save(s"$bigQueryDataset.Surrounding")
   }
 
 }
